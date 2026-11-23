@@ -6,6 +6,7 @@ import {
   createAuthenticationMiddleware,
   createRoleMiddleware,
 } from "../auth.js";
+import { clientOrigin } from "../config.js";
 import { getDatabase, withDatabaseTransaction } from "../db.js";
 
 class ApiError extends Error {
@@ -846,11 +847,6 @@ export function createApiRouter({
       throw new ApiError(409, "This account already has the Pro plan.");
     }
 
-    const betterAuthUrl = process.env.BETTER_AUTH_URL;
-    if (!betterAuthUrl) {
-      throw new ApiError(503, "BETTER_AUTH_URL is required for checkout.");
-    }
-
     const stripe = getStripeClient(stripeFactory);
     const amount = request.authUser.role === "tutor" ? 1500 : 1000;
     const planName = getPlanName(request.authUser.role);
@@ -881,8 +877,8 @@ export function createApiRouter({
           planName: "Pro",
         },
       },
-      success_url: `${betterAuthUrl.replace(/\/$/, "")}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${betterAuthUrl.replace(/\/$/, "")}/payment/cancel`,
+      success_url: `${clientOrigin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${clientOrigin}/payment/cancel`,
     });
 
     response.status(201).json({

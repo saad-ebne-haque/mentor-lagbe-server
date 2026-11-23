@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-
-process.env.CORS_ORIGINS = "http://localhost:3000";
+import {
+  clientOrigin,
+  getAllowedOrigins,
+  getClientOrigin,
+} from "../config.js";
 
 const { default: app } = await import("../app.js");
 const server = app.listen(0);
@@ -34,15 +37,33 @@ test("health route reports the HTTP process status", async () => {
   });
 });
 
-test("CORS allows a configured website origin", async () => {
+test("CORS allows the frontend origin for this environment", async () => {
   const response = await fetch(`${baseUrl}/health`, {
-    headers: { Origin: "http://localhost:3000" },
+    headers: { Origin: clientOrigin },
   });
 
   assert.equal(
     response.headers.get("access-control-allow-origin"),
-    "http://localhost:3000",
+    clientOrigin,
   );
+});
+
+test("production uses the hardcoded frontend origin", () => {
+  assert.equal(
+    getClientOrigin("production"),
+    "https://mentor-lagbe-one.vercel.app",
+  );
+  assert.deepEqual(getAllowedOrigins("production"), [
+    "https://mentor-lagbe-one.vercel.app",
+  ]);
+});
+
+test("development uses hardcoded localhost frontend origins", () => {
+  assert.equal(getClientOrigin("development"), "http://localhost:3000");
+  assert.deepEqual(getAllowedOrigins("development"), [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ]);
 });
 
 test("CORS rejects an origin that is not configured", async () => {

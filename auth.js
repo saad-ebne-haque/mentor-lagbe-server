@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { createPublicKey, verify } from "node:crypto";
+import { ObjectId } from "mongodb";
+import { clientOrigin } from "./config.js";
 import { getDatabase } from "./db.js";
 
 class AuthenticationError extends Error {
@@ -21,6 +23,14 @@ function hasExpectedAudience(audience, expectedAudience) {
   return Array.isArray(audience)
     ? audience.includes(expectedAudience)
     : audience === expectedAudience;
+}
+
+function getIdFilter(id) {
+  const filters = [{ id }, { _id: id }];
+  if (ObjectId.isValid(id)) {
+    filters.push({ _id: new ObjectId(id) });
+  }
+  return { $or: filters };
 }
 
 async function getAuthenticatedUser(token, db) {
@@ -46,27 +56,26 @@ async function getAuthenticatedUser(token, db) {
     throw new AuthenticationError("Invalid bearer token.");
   }
 
-  const betterAuthUrl = process.env.BETTER_AUTH_URL;
-  if (!betterAuthUrl) {
-    throw new Error("BETTER_AUTH_URL is required to verify API tokens.");
-  }
-
   const now = Math.floor(Date.now() / 1000);
   if (
     typeof payload.exp !== "number" ||
     payload.exp <= now ||
     (typeof payload.nbf === "number" && payload.nbf > now) ||
-    payload.iss !== betterAuthUrl ||
-    !hasExpectedAudience(payload.aud, betterAuthUrl)
+    payload.iss !== clientOrigin ||
+    !hasExpectedAudience(payload.aud, clientOrigin)
   ) {
     throw new AuthenticationError("Bearer token is expired or invalid.");
   }
 
   const keyRecord = await db.collection("jwks").findOne({
-    id: header.kid,
-    $or: [
-      { expiresAt: { $exists: false } },
-      { expiresAt: { $gt: new Date() } },
+    $and: [
+      getIdFilter(header.kid),
+      {
+        $or: [
+          { expiresAt: { $exists: false } },
+          { expiresAt: { $gt: new Date() } },
+        ],
+      },
     ],
   });
 
@@ -100,7 +109,7 @@ async function getAuthenticatedUser(token, db) {
     throw new AuthenticationError("Bearer token signature is invalid.");
   }
 
-  const user = await db.collection("user").findOne({ id: payload.sub });
+  const user = await db.collection("user").findOne(getIdFilter(payload.sub));
   if (!user || user.isActive === false) {
     throw new AuthenticationError("This account is unavailable.", 403);
   }
@@ -109,7 +118,10 @@ async function getAuthenticatedUser(token, db) {
     throw new AuthenticationError("This account has no valid role.", 403);
   }
 
-  return user;
+  return {
+    ...user,
+    id: user.id ?? user._id?.toString(),
+  };
 }
 
 export function createAuthenticationMiddleware(getDb = getDatabase) {

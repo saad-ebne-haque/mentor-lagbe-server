@@ -17,15 +17,15 @@ into a separate `users` collection.
 | Variable                | Required     | Purpose                                                                   |
 | ----------------------- | ------------ | ------------------------------------------------------------------------- |
 | `MONGODB_SECRET_URI`    | Yes          | MongoDB connection string for the `mentor-lagbe` database.                |
-| `BETTER_AUTH_URL`       | Yes          | Exact Better Auth issuer/audience URL and frontend return URL.            |
-| `CORS_ORIGINS`          | Production   | Comma-separated allowed website origins, including protocol and no path.  |
 | `STRIPE_SECRET_KEY`     | For payments | Creates monthly Pro checkout sessions and retrieves subscription details. |
 | `STRIPE_WEBHOOK_SECRET` | For payments | Verifies Stripe webhook signatures.                                       |
 | `PORT`                  | No           | HTTP port; defaults to `5000`.                                            |
-| `NODE_ENV`              | No           | Set to `production` for production behavior.                              |
+| `NODE_ENV`              | No           | Selects the hardcoded local or production frontend origin.                 |
 
-Development CORS defaults to `http://localhost:3000` and
-`http://127.0.0.1:3000`. Production must explicitly configure `CORS_ORIGINS`.
+Local development allows `http://localhost:3000` and
+`http://127.0.0.1:3000`. Production allows
+`https://mentor-lagbe-one.vercel.app`. These origins are hardcoded in
+`config.js`; keep them in sync with `client/lib/urls.ts` when domains change.
 The health endpoint checks the HTTP process only, not MongoDB connectivity.
 
 ## Authentication

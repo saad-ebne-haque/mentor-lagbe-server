@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { after, beforeEach, test } from "node:test";
 import { ObjectId } from "mongodb";
+import { clientOrigin } from "../config.js";
 
-const authUrl = "http://localhost:3000";
-process.env.CORS_ORIGINS = authUrl;
-process.env.BETTER_AUTH_URL = authUrl;
+const authUrl = clientOrigin;
 process.env.STRIPE_SECRET_KEY = "test_stripe_secret";
 process.env.STRIPE_WEBHOOK_SECRET = "test_webhook_secret";
 
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-const keyId = "test-key";
+const keyId = "0123456789abcdef01234567";
 const publicJwk = publicKey.export({ format: "jwk" });
 let db;
 let stripeEvent;
@@ -189,9 +188,12 @@ test("protected routes reject requests without a JWT", async () => {
 });
 
 test("protected routes reject a tampered JWT", async () => {
+  const [header, payload, signature] = makeToken("student-1").split(".");
+  const replacement = signature[0] === "A" ? "B" : "A";
+  const tamperedSignature = `${replacement}${signature.slice(1)}`;
   const response = await fetch(`${baseUrl}/api/dashboard/student`, {
     headers: {
-      Authorization: `Bearer ${makeToken("student-1").slice(0, -1)}x`,
+      Authorization: `Bearer ${header}.${payload}.${tamperedSignature}`,
     },
   });
 
@@ -204,6 +206,41 @@ test("JWT verification uses the current user role for access control", async () 
   });
 
   assert.equal(response.status, 403);
+});
+
+test("JWT verification supports Better Auth MongoDB ObjectId records", async () => {
+  const key = db.collection("jwks").documents[0];
+  delete key.id;
+  key._id = new ObjectId(keyId);
+
+  const student = db
+    .collection("user")
+    .documents.find((user) => user.id === "student-1");
+  delete student.id;
+  student._id = new ObjectId();
+
+  const dashboardResponse = await fetch(`${baseUrl}/api/dashboard/student`, {
+    headers: authHeaders(student._id.toHexString()),
+  });
+  assert.equal(dashboardResponse.status, 200);
+
+  const admin = db
+    .collection("user")
+    .documents.find((user) => user.id === "admin-1");
+  delete admin.id;
+  admin._id = new ObjectId();
+
+  const roleResponse = await fetch(
+    `${baseUrl}/api/admin/users/${admin._id.toHexString()}/role`,
+    {
+      method: "PATCH",
+      headers: authHeaders(admin._id.toHexString(), {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({ role: "student" }),
+    },
+  );
+  assert.equal(roleResponse.status, 409);
 });
 
 test("students can apply once to an approved active tuition", async () => {
@@ -319,6 +356,11 @@ test("tutor checkout creates the monthly tutor price", async () => {
     checkoutOptions.line_items[0].price_data.recurring.interval,
     "month",
   );
+  assert.equal(
+    checkoutOptions.success_url,
+    `${authUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+  );
+  assert.equal(checkoutOptions.cancel_url, `${authUrl}/payment/cancel`);
 });
 
 test("student checkout uses the assigned monthly price", async () => {
@@ -565,6 +607,9 @@ function matches(document, filter = {}) {
   return Object.entries(filter).every(([field, expected]) => {
     if (field === "$or") {
       return expected.some((condition) => matches(document, condition));
+    }
+    if (field === "$and") {
+      return expected.every((condition) => matches(document, condition));
     }
 
     const actual = document[field];

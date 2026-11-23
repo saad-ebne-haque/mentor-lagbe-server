@@ -1,52 +1,11 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import { getAllowedOrigins } from "./config.js";
 import { createApiRouter } from "./routes/api.js";
 
-const developmentOrigins = ["http://localhost:3000", "http://127.0.0.1:3000"];
-
-function getAllowedOrigins() {
-  const configuredOrigins = process.env.CORS_ORIGINS;
-  const origins =
-    configuredOrigins === undefined
-      ? process.env.NODE_ENV === "production"
-        ? []
-        : developmentOrigins
-      : configuredOrigins.split(",").map((origin) => origin.trim());
-
-  if (origins.length === 0 || origins.some((origin) => !origin)) {
-    throw new Error(
-      "Set CORS_ORIGINS to a comma-separated list of allowed website origins.",
-    );
-  }
-
-  return new Set(
-    origins.map((origin) => {
-      let parsedOrigin;
-
-      try {
-        parsedOrigin = new URL(origin);
-      } catch {
-        throw new Error(`Invalid origin in CORS_ORIGINS: ${origin}`);
-      }
-
-      if (
-        (parsedOrigin.protocol !== "http:" &&
-          parsedOrigin.protocol !== "https:") ||
-        parsedOrigin.origin !== origin
-      ) {
-        throw new Error(
-          `CORS_ORIGINS entries must be origins without paths: ${origin}`,
-        );
-      }
-
-      return parsedOrigin.origin;
-    }),
-  );
-}
-
 export function createApp(apiOptions) {
-  const allowedOrigins = getAllowedOrigins();
+  const allowedOrigins = new Set(getAllowedOrigins());
   const app = express();
 
   app.use(

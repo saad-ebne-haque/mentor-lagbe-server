@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "node --watch index.js",
     "start": "node index.js",
+    "seed:tuitions": "node scripts/seed-tuitions.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -75,6 +75,25 @@ deployed API must use the signing secret from a Stripe Sandbox webhook endpoint
 configured with the deployed HTTPS API URL; do not use the local CLI secret
 for a deployed endpoint.
 
+## Seed sample tuitions
+
+The seed script adds 20 approved, active tuition listings to the `tuitions`
+collection and links them to the selected Tutor account already in the Better
+Auth `user` collection. It does not create or modify users, overwrite existing
+listings, or delete data. It stops without writing if the Tutor account is
+missing or a Free Tutor would exceed the two-listing limit.
+
+Check the configured `MONGODB_SECRET_URI` target first. The default command is
+a dry run; add `-- --apply` only when you are ready to write to that database:
+
+```sh
+npm run seed:tuitions -- --tutor-email tutor@example.test
+npm run seed:tuitions -- --tutor-email tutor@example.test --apply
+```
+
+The script skips seed records already present, so it can be run again without
+duplicating those listings. Keep the database URI private.
+
 ## Data and current limitations
 
 The API uses the existing Better Auth `user` collection and the assignment

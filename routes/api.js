@@ -574,15 +574,33 @@ export function createApiRouter({
     authenticate,
     requireStudent,
     async (request, response) => {
-      const applications = await (
-        await getDb()
-      )
+      const db = await getDb();
+      const applications = await db
         .collection("applications")
         .find({ studentEmail: request.authUser.email })
         .sort({ appliedAt: -1 })
         .toArray();
+      const applicationsWithTutorNames = await Promise.all(
+        applications.map(async (application) => {
+          if (
+            typeof application.tutorName === "string" &&
+            application.tutorName.trim()
+          ) {
+            return application;
+          }
 
-      response.json({ success: true, data: applications });
+          const tutor = await db.collection("user").findOne({
+            email: application.tutorEmail,
+          });
+
+          return {
+            ...application,
+            tutorName: typeof tutor?.name === "string" ? tutor.name : null,
+          };
+        }),
+      );
+
+      response.json({ success: true, data: applicationsWithTutorNames });
     },
   );
 
@@ -609,6 +627,7 @@ export function createApiRouter({
         tuitionTitle: tuition.title,
         subject: tuition.subject,
         monthlyFee: tuition.monthlyFee,
+        tutorName: tuition.tutorName ?? null,
         tutorEmail: tuition.tutorEmail,
         studentName: request.authUser.name,
         studentEmail: request.authUser.email,

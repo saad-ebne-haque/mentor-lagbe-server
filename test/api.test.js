@@ -243,7 +243,7 @@ test("JWT verification supports Better Auth MongoDB ObjectId records", async () 
   assert.equal(roleResponse.status, 409);
 });
 
-test("students can apply once to an approved active tuition", async () => {
+test("students can apply once and view tutor details on their applications", async () => {
   const tuition = await addTuition();
   const request = () =>
     fetch(`${baseUrl}/api/applications`, {
@@ -260,10 +260,67 @@ test("students can apply once to an approved active tuition", async () => {
 
   const firstResponse = await request();
   const duplicateResponse = await request();
+  const firstResult = await firstResponse.json();
+  delete db.collection("applications").documents[0].tutorName;
+  const applicationsResponse = await fetch(
+    `${baseUrl}/api/applications/me`,
+    {
+      headers: authHeaders("student-1"),
+    },
+  );
+  const applicationsResult = await applicationsResponse.json();
 
   assert.equal(firstResponse.status, 201);
   assert.equal(duplicateResponse.status, 409);
   assert.equal(db.collection("applications").documents.length, 1);
+  assert.equal(firstResult.data.tutorName, tuition.tutorName);
+  assert.equal(applicationsResponse.status, 200);
+  assert.equal(applicationsResult.data[0].tuitionTitle, tuition.title);
+  assert.equal(applicationsResult.data[0].tutorName, "Tutor One");
+  assert.equal(applicationsResult.data[0].tutorEmail, tuition.tutorEmail);
+  assert.equal(applicationsResult.data[0].monthlyFee, tuition.monthlyFee);
+  assert.equal(applicationsResult.data[0].status, "pending");
+  assert.equal(typeof applicationsResult.data[0].appliedAt, "string");
+});
+
+test("students can cancel only their pending applications", async () => {
+  const tuition = await addTuition();
+  const createResponse = await fetch(`${baseUrl}/api/applications`, {
+    method: "POST",
+    headers: authHeaders("student-1", {
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({
+      tuitionId: tuition._id.toString(),
+      studentPhone: "01700000000",
+      preferredSchedule: "Weekend evenings",
+    }),
+  });
+  const createdApplication = await createResponse.json();
+  const storedApplication = db.collection("applications").documents[0];
+  storedApplication.status = "accepted";
+
+  const acceptedResponse = await fetch(
+    `${baseUrl}/api/applications/${createdApplication.data._id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders("student-1"),
+    },
+  );
+  storedApplication.status = "pending";
+
+  const pendingResponse = await fetch(
+    `${baseUrl}/api/applications/${createdApplication.data._id}`,
+    {
+      method: "DELETE",
+      headers: authHeaders("student-1"),
+    },
+  );
+
+  assert.equal(createResponse.status, 201);
+  assert.equal(acceptedResponse.status, 409);
+  assert.equal(pendingResponse.status, 200);
+  assert.equal(db.collection("applications").documents.length, 0);
 });
 
 test("free tutors cannot create more than two tuition listings", async () => {

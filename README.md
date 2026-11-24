@@ -52,7 +52,7 @@ All responses use JSON. Protected endpoints require a valid Bearer token.
 | `PATCH`  | `/api/tuitions/:tuitionId/active`         | Owner Tutor      | Activate or close an approved listing.                                         |
 | `DELETE` | `/api/tuitions/:tuitionId`                | Owner Tutor      | Delete an owned listing.                                                       |
 | `POST`   | `/api/applications`                       | Student          | Apply to an approved listing; duplicate applications are rejected.             |
-| `GET`    | `/api/applications/me`                    | Student          | List the signed-in student's applications.                                     |
+| `GET`    | `/api/applications/me`                    | Student          | List the student's applications with tuition and tutor details.                 |
 | `DELETE` | `/api/applications/:applicationId`        | Owner Student    | Cancel a pending application.                                                  |
 | `GET`    | `/api/tutor/applications`                 | Tutor            | List applicants for the signed-in tutor's listings.                            |
 | `PATCH`  | `/api/applications/:applicationId/status` | Owner Tutor      | Accept or reject a pending application.                                        |
